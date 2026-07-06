@@ -1,6 +1,6 @@
 from paddleocr import TextRecognition
 model = TextRecognition(model_name="PP-OCRv6_medium_rec")
-input = "bdc0fe63-cf15-440f-be9c-07b04a5e63d0.png"
+input = "13d0a418-fe7b-4d9b-873e-f2bbccb2554c.png"
 output = model.predict(input=input, batch_size=1)
 for res in output:
     res.print()
