@@ -1,5 +1,6 @@
 from paddleocr import PaddleOCR
-input = "./13d0a418-fe7b-4d9b-873e-f2bbccb2554c.png"
+
+input = "13d0a418-fe7b-4d9b-873e-f2bbccb2554c.png"
 ocr = PaddleOCR(
     text_detection_model_name="PP-OCRv6_medium_det",
     text_recognition_model_name="PP-OCRv6_medium_rec",
