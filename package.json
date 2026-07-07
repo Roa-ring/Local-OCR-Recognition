@@ -1,0 +1,36 @@
+{
+  "name": "ocr-desktop",
+  "version": "1.0.0",
+  "description": "本地 OCR 文字识别桌面应用",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder"
+  },
+  "build": {
+    "appId": "com.local.ocr",
+    "productName": "纸张实验室OCR",
+    "win": {
+      "target": "nsis",
+      "icon": "icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerLanguages": ["zh_CN"],
+      "language": "2052"
+    },
+    "files": [
+      "main.js",
+      "dist/**"
+    ],
+    "directories": {
+      "output": "release"
+    }
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.0.0"
+  }
+}
