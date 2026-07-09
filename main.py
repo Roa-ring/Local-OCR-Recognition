@@ -1,8 +1,7 @@
 import cv2
-import numpy as np
 from paddleocr import PaddleOCR
 from preprocess import bgr_to_gray, histogram_median_filter
-
+from history_manage import history_manage
 """图像预处理"""
 def process(image_path):
     # 1. 读取图像
@@ -30,10 +29,6 @@ def main(input):
         use_textline_orientation=True,
     )
     result = ocr.predict("./cache/"+input+".png")
-    for res in result:
-        res.print()
-        res.save_to_img("output")
-        res.save_to_json("output")
-
+    history_manage(result=result,image_path=input)
 main(input = "48bc_720.jpg")
     
