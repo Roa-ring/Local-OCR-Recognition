@@ -1,7 +1,7 @@
 from searchnew import search_by_fields, print_results
 
 test_cases = [
-    ("20260710", "线，不"),
+    ("20260710", "\n"),
     
 ]
 

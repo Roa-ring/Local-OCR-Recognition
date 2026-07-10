@@ -1,6 +1,6 @@
 # searchnew.py（关键修改部分）
 import re
-from output import get_manager
+from base import get_manager
 from datefill import parse_date_token
 from date_parser import normalize_date
 from parse_utils import parse_and_complete_date_range

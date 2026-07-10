@@ -6,6 +6,8 @@ from history_manage import history_manage
 def process(image_path):
     # 1. 读取图像
     img = cv2.imread(image_path)
+    if img is None:
+        raise ValueError(f"无法解码图像文件: {image_path}，请检查文件格式是否支持或文件是否损坏。")
     # 2. 灰度化
     gray = bgr_to_gray(img)
     # 返回处理后的图像 (用于PaddleOCR) 和原始图像 (用于可视化)
@@ -30,5 +32,5 @@ def main(input):
     )
     result = ocr.predict("./cache/"+input+".png")
     history_manage(result=result,image_path=input)
-main(input = "48bc_720.jpg")
+main(input = "c2990ee0d065aa5b079f5d55641e47ec.jpg")
     
