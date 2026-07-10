@@ -1,19 +1,18 @@
 """
 输出与历史记录管理模块
-- 使用二叉搜索树（BST）按日期（YYYYMMDD）索引历史记录
-- 每次识别生成日期_索引.txt文件，并存入BST
-- 支持按日期查询和关键词搜索（基于txt文件内容）
+- 使用二叉搜索树(BS)按日期(YYYYMMDD)索引历史记录
+- 每次识别生成日期_索引.txt文件,并存入BST
+- 支持按日期查询和关键词搜索(基于txt文件内容)
 """
 import os
 import shutil
 import json
-import time
 import indexmake
 
 
 # ==================== BST 数据结构 ====================
 class BSTNode:
-    """BST节点，key为日期整数，value为该日所有记录的列表"""
+    """BST节点,key为日期整数,value为该日所有记录的列表"""
     def __init__(self, key, record):
         self.key = key
         self.records = [record]
@@ -44,6 +43,16 @@ class HistoryBST:
             else:
                 self._insert(node.right, key, record)
 
+    def search_by_date(self, key):
+        node = self._search(self.root, key)
+        return node.records if node else None
+
+    def _search(self, node, key):
+        if node is None or node.key == key:
+            return node
+        if key < node.key:
+            return self._search(node.left, key)
+        return self._search(node.right, key)
 
     def inorder(self):
         """返回所有记录（按日期升序）"""
@@ -206,52 +215,3 @@ def get_manager():
     if _manager is None:
         _manager = HistoryManager(storage_dir="history")
     return _manager
-
-def extract_text_from_result(result):
-    """从PaddleOCR返回结果中提取完整文本"""
-    texts = []
-    for res in result:
-        if isinstance(res, dict) and 'rec_texts' in res:
-            texts.extend(res['rec_texts'])
-        elif hasattr(res, 'rec_texts'):
-            texts.extend(res.rec_texts)
-        else:
-            for item in res:
-                if isinstance(item, list) and len(item) >= 2:
-                    texts.append(item[1][0] if isinstance(item[1], list) else str(item[1]))
-    return '\n'.join(texts)
-
-def save_and_record_result(result, image_path):
-    """供主程序调用的主要函数"""
-    manager = get_manager()
-    text = extract_text_from_result(result)
-    file_size = os.path.getsize(image_path)
-    record = manager.add_record(image_path, text, file_size)
-    print(f"[历史记录] 已保存：{record['txt_file']} (图片：{record['img_file']})")
-    return record
-
-def query_by_date(date_str):
-    """按日期查询，返回记录列表"""
-    manager = get_manager()
-    return manager.search_by_date(date_str)
-
-def query_keyword(date_str, keyword):
-    """按日期和关键词查询"""
-    manager = get_manager()
-    return manager.search_keyword_in_date(date_str, keyword)
-
-def export_report(filename="history_report.txt"):
-    """导出所有记录为人类可读的文本报告"""
-    manager = get_manager()
-    records = manager.get_all_records()
-    with open(filename, 'w', encoding='utf-8') as f:
-        f.write("历史记录报告\n")
-        f.write("=" * 50 + "\n")
-        for rec in records:
-            f.write(f"日期: {rec['date']}\n")
-            f.write(f"文件夹: {rec['record_dir']}\n")
-            f.write(f"文本文件: {rec['txt_file']}\n")
-            f.write(f"图片文件: {rec['img_file']}\n")
-            f.write(f"内容: {rec['text'][:100]}{'...' if len(rec['text']) > 100 else ''}\n")
-            f.write("-" * 30 + "\n")
-    print(f"[报告] 已导出到 {filename}")

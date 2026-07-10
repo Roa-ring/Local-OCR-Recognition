@@ -1,4 +1,4 @@
-from output import extract_text_from_result
+from output import extract_text_from_result,save_and_record_result
 import indexmake
 import os
 import json_cal
@@ -6,6 +6,9 @@ import json_cal
 def history_manage(result,image_path):
     # ===== 1. 生成统一的基础名称 =====
     base_name = indexmake.get_next_base("history")
+
+    # ===== 3. 保存历史记录（会创建 history/base_name/） =====
+    save_and_record_result(result, image_path)
 
     # ===== 4. 实际存储路径 =====
     record_dir = os.path.join("history", base_name)
