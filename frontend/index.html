@@ -1,0 +1,927 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>本地 OCR 文字识别</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:        #f5f3ef;
+      --surface:   #faf9f6;
+      --border:    #e8e4dc;
+      --primary:   #faf9f6;
+      --accent:    #6b6256;
+      --accent-lt: #f0ede6;
+      --danger:    #c0533a;
+      --text:      #2a231a;
+      --muted:     #8a7d6e;
+      --radius:    10px;
+      --shadow:    0 2px 12px rgba(60,40,10,.07);
+    }
+    body {
+      font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* 顶栏 */
+    header {
+      background: var(--primary);
+      color: var(--text);
+      border-bottom: 1px solid var(--border);
+      padding: 0 28px;
+      height: 52px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+    header .brand { font-size: 15px; font-weight: 600; letter-spacing: .5px; color: var(--text); }
+    header nav a {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 13px;
+      margin-left: 20px;
+      transition: color .15s;
+    }
+    header nav a:hover { color: var(--text); }
+    header nav a.active { color: var(--text); font-weight: 600; }
+
+    /* 主布局 */
+    main {
+      flex: 1;
+      max-width: 1200px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 28px 20px;
+      display: grid;
+      grid-template-columns: 380px 1fr;
+      gap: 20px;
+      align-items: start;
+    }
+
+    /* 卡片 */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .card-header {
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .card-header .badge {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--muted);
+    }
+    .card-body { padding: 18px; }
+
+    /* 拖拽区 */
+    #drop-zone {
+      border: 2px dashed var(--border);
+      border-radius: 8px;
+      padding: 28px 16px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .2s, background .2s;
+    }
+    #drop-zone:hover, #drop-zone.drag-over {
+      border-color: var(--accent);
+      background: var(--accent-lt);
+    }
+    #drop-zone p { font-size: 13px; color: var(--muted); margin-bottom: 12px; }
+    .btn-row { display: flex; gap: 10px; justify-content: center; }
+    .btn {
+      padding: 7px 16px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      transition: background .15s, border-color .15s;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+    }
+    .btn:hover { background: var(--bg); }
+    .btn.primary {
+      background: var(--surface);
+      color: var(--text);
+      border-color: var(--border);
+    }
+    .btn.primary:hover { background: var(--accent-lt); border-color: var(--accent); }
+    .btn.primary:active { transform: scale(.97); }
+    .btn.primary:disabled { opacity: .4; cursor: not-allowed; transform: none; }
+
+    /* 缩略图 */
+    #thumb-section { margin-top: 14px; display: none; }
+    #thumb-section .section-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    #thumb-section .section-bar a {
+      color: var(--danger);
+      cursor: pointer;
+      text-decoration: none;
+      font-size: 12px;
+    }
+    #thumb-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      max-height: 240px;
+      overflow-y: auto;
+    }
+    .thumb-item {
+      position: relative;
+      width: 100%;
+      padding-top: 100%; /* 强制正方形 */
+      border-radius: 6px;
+      overflow: hidden;
+      border: 2px solid transparent;
+      cursor: pointer;
+      transition: border-color .15s;
+      background: var(--bg);
+    }
+    .thumb-item:hover { border-color: var(--accent); }
+    .thumb-item img {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .thumb-item .num {
+      position: absolute;
+      top: 4px; left: 4px;
+      background: rgba(0,0,0,.55);
+      color: #fff;
+      font-size: 10px;
+      border-radius: 4px;
+      padding: 1px 5px;
+      z-index: 1;
+    }
+    .thumb-item .crop-hint {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      background: rgba(0,0,0,.45);
+      color: #fff;
+      font-size: 10px;
+      text-align: center;
+      padding: 3px 0;
+      opacity: 0;
+      transition: opacity .15s;
+    }
+    .thumb-item:hover .crop-hint { opacity: 1; }
+
+    /* 进度条 */
+    .progress-bar-wrap {
+      height: 4px;
+      background: var(--border);
+      border-radius: 2px;
+      margin-top: 10px;
+      overflow: hidden;
+    }
+    .progress-bar {
+      height: 100%;
+      background: var(--accent);
+      border-radius: 2px;
+      width: 0%;
+      transition: width .3s ease;
+    }
+
+    /* 开始按钮 */
+    #start-btn {
+      width: 100%;
+      margin-top: 14px;
+      padding: 11px;
+      font-size: 14px;
+      justify-content: center;
+    }
+
+    /* 使用说明 */
+    .usage {
+      margin-top: 14px;
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.8;
+    }
+
+    /* 右侧面板 */
+    #result-panel { display: flex; flex-direction: column; gap: 16px; }
+
+    /* 置信度卡片 */
+    .conf-card {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      padding: 16px 18px;
+    }
+    .conf-ring-wrap { position: relative; width: 72px; height: 72px; flex-shrink: 0; }
+    .conf-ring-wrap svg { transform: rotate(-90deg); }
+    .conf-ring-bg  { fill: none; stroke: #e8eaf0; stroke-width: 7; }
+    .conf-ring-fg  { fill: none; stroke: var(--accent); stroke-width: 7; stroke-linecap: round;
+                     stroke-dasharray: 188.5; stroke-dashoffset: 188.5;
+                     transition: stroke-dashoffset .6s cubic-bezier(.23,1,.32,1); }
+    .conf-ring-fg.danger { stroke: var(--danger); }
+    .conf-pct {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; font-weight: 700; color: var(--text);
+    }
+    .conf-info h4 { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+    .conf-info p  { font-size: 12px; color: var(--muted); }
+    .conf-info .stats { display: flex; gap: 14px; margin-top: 6px; }
+    .conf-info .stat  { font-size: 12px; color: var(--muted); }
+    .conf-info .stat span { font-weight: 600; color: var(--text); }
+
+    /* 标签栏 */
+    .tabs-wrap {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+    }
+    .tabs-scroll {
+      flex: 1;
+      overflow-x: auto;
+      scrollbar-width: none;
+      display: flex;
+      gap: 6px;
+    }
+    .tabs-scroll::-webkit-scrollbar { display: none; }
+    .tab-btn {
+      flex-shrink: 0;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      cursor: pointer;
+      white-space: nowrap;
+      max-width: 120px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      transition: background .15s, border-color .15s;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .tab-btn:hover { background: var(--bg); }
+    .tab-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .tab-btn .dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+    .tab-btn .dot.ok   { background: #4caf50; }
+    .tab-btn .dot.fail { background: var(--danger); }
+    .tab-btn .dot.pending { background: var(--muted); }
+    .tab-nav {
+      flex-shrink: 0;
+      width: 24px; height: 24px;
+      border-radius: 50%;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      cursor: pointer;
+      font-size: 14px;
+      display: flex; align-items: center; justify-content: center;
+      transition: background .15s;
+    }
+    .tab-nav:hover { background: var(--bg); }
+    .tab-counter { font-size: 12px; color: var(--muted); white-space: nowrap; }
+
+    /* 结果区 */
+    .result-body { padding: 14px 18px; min-height: 120px; }
+    .result-meta { font-size: 12px; color: var(--muted); margin-bottom: 10px; display: flex; gap: 12px; flex-wrap: wrap; }
+    .result-text { font-size: 13px; line-height: 1.9; white-space: pre-wrap; word-break: break-all; }
+    .result-footer {
+      padding: 10px 18px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .dl-wrap { position: relative; }
+    .dl-menu {
+      display: none;
+      position: absolute;
+      right: 0; bottom: 36px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      min-width: 130px;
+      z-index: 10;
+    }
+    .dl-menu a {
+      display: block;
+      padding: 9px 14px;
+      font-size: 13px;
+      color: var(--text);
+      text-decoration: none;
+      transition: background .12s;
+    }
+    .dl-menu a:hover { background: var(--bg); }
+    .dl-menu.open { display: block; }
+
+    /* 空状态 */
+    .empty-state {
+      padding: 48px 20px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .empty-state p { margin-top: 8px; }
+
+    /* 图片预览弹窗 */
+    #img-modal {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.75);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+    }
+    #img-modal.open { display: flex; }
+    #img-modal img { max-width: 90vw; max-height: 90vh; border-radius: 8px; }
+    .close-btn {
+      position: absolute; top: 20px; right: 24px;
+      color: #fff; font-size: 24px; cursor: pointer;
+      line-height: 1;
+    }
+
+    /* 裁剪弹窗 */
+    #crop-modal {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.8);
+      z-index: 200;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+    }
+    #crop-modal.open { display: flex; }
+    #crop-modal h3 { color: #fff; font-size: 15px; }
+    #crop-wrap {
+      position: relative;
+      cursor: crosshair;
+      user-select: none;
+    }
+    #crop-img { display: block; max-width: 80vw; max-height: 70vh; border-radius: 6px; }
+    #crop-selection {
+      position: absolute;
+      border: 2px solid #fff;
+      background: rgba(255,255,255,.15);
+      pointer-events: none;
+    }
+    .crop-actions { display: flex; gap: 12px; }
+    .crop-actions button {
+      padding: 8px 22px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      border: 1px solid rgba(255,255,255,.4);
+      background: rgba(255,255,255,.15);
+      color: #fff;
+      transition: background .15s;
+    }
+    .crop-actions button:hover { background: rgba(255,255,255,.3); }
+    .crop-actions button.confirm { background: var(--accent); border-color: var(--accent); }
+    .crop-actions button.confirm:hover { background: #564e44; }
+    #crop-hint { font-size: 12px; color: rgba(255,255,255,.6); }
+  </style>
+</head>
+<body>
+
+<header>
+  <span class="brand">OCR 文字识别</span>
+  <nav>
+    <a href="index.html" class="active">识别</a>
+    <a href="history.html">历史搜索</a>
+  </nav>
+</header>
+
+<main>
+  <!-- 左侧：上传 -->
+  <div>
+    <div class="card">
+      <div class="card-header">
+        <span>上传图片</span>
+        <span class="badge" id="file-count-badge"></span>
+      </div>
+      <div class="card-body">
+        <div id="drop-zone">
+          <p>拖拽图片到此处，或点击按钮选择</p>
+          <div class="btn-row">
+            <button class="btn" onclick="document.getElementById('file-input').click()">选择文件</button>
+            <button class="btn" onclick="document.getElementById('folder-input').click()">选择文件夹</button>
+          </div>
+          <input type="file" id="file-input" accept="image/*" multiple hidden />
+          <input type="file" id="folder-input" accept="image/*" multiple webkitdirectory hidden />
+        </div>
+
+        <div id="thumb-section">
+          <div class="section-bar">
+            <span id="thumb-label">已选 0 张</span>
+            <a onclick="clearAll()">清空全部</a>
+          </div>
+          <div id="thumb-grid"></div>
+          <div class="progress-bar-wrap" id="progress-wrap" style="display:none">
+            <div class="progress-bar" id="progress-bar"></div>
+          </div>
+        </div>
+
+        <button class="btn primary" id="start-btn" onclick="startOCR()" disabled>
+          开始识别
+        </button>
+
+        <div class="usage">
+          使用说明<br>
+          支持点击、拖拽文件夹、或 Ctrl+V 粘贴截图上传<br>
+          点击缩略图可预览，长按可裁剪后再识别<br>
+          确保 <code>python app.py</code> 已在本地运行
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 右侧：结果 -->
+  <div id="result-panel">
+    <!-- 识别结果卡片 -->
+    <div class="card" id="result-card">
+      <div id="result-empty" class="empty-state">
+        <p>上传图片后点击"开始识别"</p>
+      </div>
+
+      <div id="result-content" style="display:none">
+        <div class="card-header">
+          <span>识别结果</span>
+          <span class="badge" id="result-progress-badge"></span>
+        </div>
+
+        <!-- 标签栏 -->
+        <div class="tabs-wrap">
+          <button class="tab-nav" id="tab-prev" onclick="scrollTabs(-1)">&#8249;</button>
+          <div class="tabs-scroll" id="tabs-scroll"></div>
+          <button class="tab-nav" id="tab-next" onclick="scrollTabs(1)">&#8250;</button>
+          <span class="tab-counter" id="tab-counter"></span>
+        </div>
+
+        <div class="result-body">
+          <div class="result-meta" id="result-meta"></div>
+          <div class="result-text" id="result-text"></div>
+        </div>
+
+        <div class="result-footer">
+          <span id="block-count"></span>
+          <div class="dl-wrap">
+            <button class="btn" onclick="toggleDlMenu()">下载 ▾</button>
+            <div class="dl-menu" id="dl-menu">
+              <a href="#" onclick="downloadTxt(); return false;">下载 TXT</a>
+              <a href="#" onclick="downloadJson(); return false;">下载 JSON</a>
+              <a href="#" onclick="downloadAllTxt(); return false;">下载全部 TXT</a>
+              <a href="#" onclick="downloadAllJson(); return false;">下载全部 JSON</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 置信度卡片 -->
+    <div class="card">
+      <div class="conf-card">
+        <div class="conf-ring-wrap">
+          <svg width="72" height="72" viewBox="0 0 72 72">
+            <circle class="conf-ring-bg" cx="36" cy="36" r="30"/>
+            <circle class="conf-ring-fg" id="conf-ring" cx="36" cy="36" r="30"/>
+          </svg>
+          <div class="conf-pct" id="conf-pct">—</div>
+        </div>
+        <div class="conf-info">
+          <h4>识别置信度</h4>
+          <p>当前图片 OCR 平均置信度</p>
+          <div class="stats">
+            <div class="stat">字符数 <span id="stat-chars">—</span></div>
+            <div class="stat">行数 <span id="stat-lines">—</span></div>
+            <div class="stat">耗时 <span id="stat-time">—</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer style="text-align:center;padding:14px 0 18px;font-size:12px;color:var(--muted);">
+  数据仅在本机处理，不上传至任何服务器
+</footer>
+
+<!-- 图片预览弹窗 -->
+<div id="img-modal">
+  <span class="close-btn" onclick="closeModal()">&#x2715;</span>
+  <img id="modal-img" src="" alt="预览" />
+</div>
+
+<!-- 裁剪弹窗 -->
+<div id="crop-modal">
+  <h3>裁剪图片（拖动选择区域）</h3>
+  <div id="crop-wrap">
+    <img id="crop-img" src="" alt="裁剪" draggable="false" />
+    <div id="crop-selection" style="display:none"></div>
+  </div>
+  <p id="crop-hint">拖动鼠标选择要保留的区域，然后点击"确认裁剪"</p>
+  <div class="crop-actions">
+    <button onclick="closeCrop()">取消</button>
+    <button class="confirm" onclick="confirmCrop()">确认裁剪</button>
+  </div>
+</div>
+
+<script>
+// ── 状态 ──────────────────────────────────────────────────────────────────────
+let files = [];
+let results = [];
+let activeIdx = 0;
+
+// 裁剪状态
+let cropIdx = -1;
+let cropStart = null;
+let cropRect = null;
+
+// ── 文件输入 ──────────────────────────────────────────────────────────────────
+document.getElementById('file-input').addEventListener('change', e => addFiles(e.target.files));
+document.getElementById('folder-input').addEventListener('change', e => addFiles(e.target.files));
+
+const dropZone = document.getElementById('drop-zone');
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+  addFiles(e.dataTransfer.files);
+});
+
+document.addEventListener('paste', e => {
+  const items = e.clipboardData?.items;
+  if (!items) return;
+  const imgs = Array.from(items).filter(i => i.type.startsWith('image/'));
+  if (!imgs.length) return;
+  addFiles(imgs.map(i => i.getAsFile()).filter(Boolean));
+});
+
+function addFiles(fileList) {
+  const arr = Array.from(fileList).filter(f => f.type.startsWith('image/'));
+  if (!arr.length) return;
+  arr.forEach(f => {
+    files.push(f);
+    results.push({ file: f, status: 'pending', data: null });
+  });
+  renderThumbs();
+  updateUI();
+}
+
+function clearAll() {
+  files = [];
+  results = [];
+  activeIdx = 0;
+  renderThumbs();
+  updateUI();
+  resetResultPanel();
+}
+
+// ── 缩略图渲染 ────────────────────────────────────────────────────────────────
+function renderThumbs() {
+  const grid = document.getElementById('thumb-grid');
+  grid.innerHTML = '';
+  files.forEach((f, i) => {
+    const url = URL.createObjectURL(f);
+    const item = document.createElement('div');
+    item.className = 'thumb-item';
+
+    const img = document.createElement('img');
+    img.src = url;
+    img.alt = f.name;
+
+    const num = document.createElement('span');
+    num.className = 'num';
+    num.textContent = i + 1;
+
+    const hint = document.createElement('span');
+    hint.className = 'crop-hint';
+    hint.textContent = '点击预览 / 右键裁剪';
+
+    item.appendChild(img);
+    item.appendChild(num);
+    item.appendChild(hint);
+
+    // 左键：预览
+    item.addEventListener('click', () => openModal(url));
+    // 右键：裁剪
+    item.addEventListener('contextmenu', e => {
+      e.preventDefault();
+      openCrop(i, url);
+    });
+
+    grid.appendChild(item);
+  });
+
+  const section = document.getElementById('thumb-section');
+  section.style.display = files.length ? 'block' : 'none';
+  document.getElementById('thumb-label').textContent =
+    `已选 ${files.length} 张 · 左键预览 · 右键裁剪`;
+}
+
+function updateUI() {
+  const btn = document.getElementById('start-btn');
+  btn.disabled = files.length === 0;
+  btn.textContent = files.length ? `开始识别（${files.length} 张）` : '开始识别';
+  document.getElementById('file-count-badge').textContent = files.length ? `已选 ${files.length} 张` : '';
+}
+
+// ── 图片预览弹窗 ──────────────────────────────────────────────────────────────
+function openModal(src) {
+  document.getElementById('modal-img').src = src;
+  document.getElementById('img-modal').classList.add('open');
+}
+function closeModal() {
+  document.getElementById('img-modal').classList.remove('open');
+}
+document.getElementById('img-modal').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeModal();
+});
+
+// ── 裁剪弹窗 ──────────────────────────────────────────────────────────────────
+function openCrop(idx, url) {
+  cropIdx = idx;
+  cropRect = null;
+  cropStart = null;
+
+  const img = document.getElementById('crop-img');
+  img.src = url;
+  img.onload = () => {
+    document.getElementById('crop-selection').style.display = 'none';
+  };
+
+  document.getElementById('crop-modal').classList.add('open');
+}
+
+function closeCrop() {
+  document.getElementById('crop-modal').classList.remove('open');
+  cropIdx = -1;
+}
+
+const cropWrap = document.getElementById('crop-wrap');
+const cropSel  = document.getElementById('crop-selection');
+
+cropWrap.addEventListener('mousedown', e => {
+  if (e.button !== 0) return;
+  const rect = cropWrap.getBoundingClientRect();
+  cropStart = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  cropSel.style.display = 'block';
+  cropSel.style.left   = cropStart.x + 'px';
+  cropSel.style.top    = cropStart.y + 'px';
+  cropSel.style.width  = '0px';
+  cropSel.style.height = '0px';
+});
+
+cropWrap.addEventListener('mousemove', e => {
+  if (!cropStart) return;
+  const rect = cropWrap.getBoundingClientRect();
+  const cx = e.clientX - rect.left;
+  const cy = e.clientY - rect.top;
+  const x = Math.min(cx, cropStart.x);
+  const y = Math.min(cy, cropStart.y);
+  const w = Math.abs(cx - cropStart.x);
+  const h = Math.abs(cy - cropStart.y);
+  cropSel.style.left   = x + 'px';
+  cropSel.style.top    = y + 'px';
+  cropSel.style.width  = w + 'px';
+  cropSel.style.height = h + 'px';
+  cropRect = { x, y, w, h };
+});
+
+cropWrap.addEventListener('mouseup', () => { cropStart = null; });
+
+function confirmCrop() {
+  if (!cropRect || cropRect.w < 5 || cropRect.h < 5) {
+    alert('请先拖动鼠标选择裁剪区域');
+    return;
+  }
+  const imgEl = document.getElementById('crop-img');
+  const displayW = imgEl.clientWidth;
+  const displayH = imgEl.clientHeight;
+  const scaleX = imgEl.naturalWidth  / displayW;
+  const scaleY = imgEl.naturalHeight / displayH;
+
+  const sx = cropRect.x * scaleX;
+  const sy = cropRect.y * scaleY;
+  const sw = cropRect.w * scaleX;
+  const sh = cropRect.h * scaleY;
+
+  const canvas = document.createElement('canvas');
+  canvas.width  = sw;
+  canvas.height = sh;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(imgEl, sx, sy, sw, sh, 0, 0, sw, sh);
+
+  canvas.toBlob(blob => {
+    if (!blob) return;
+    const origName = files[cropIdx].name;
+    const ext = origName.match(/\.[^.]+$/) ? origName.match(/\.[^.]+$/)[0] : '.png';
+    const newFile = new File([blob], origName.replace(/\.[^.]+$/, '') + '_crop' + ext, { type: blob.type });
+    files[cropIdx] = newFile;
+    results[cropIdx] = { file: newFile, status: 'pending', data: null };
+    renderThumbs();
+    closeCrop();
+  }, 'image/png');
+}
+
+// ── OCR 识别（串行，逐张发送，避免 PaddleOCR 并发崩溃） ────────────────────────
+async function startOCR() {
+  if (!files.length) return;
+  results = files.map(f => ({ file: f, status: 'pending', data: null }));
+  activeIdx = 0;
+
+  document.getElementById('start-btn').disabled = true;
+  document.getElementById('progress-wrap').style.display = '';
+  showResultContent();
+  renderTabs();
+
+  for (let i = 0; i < files.length; i++) {
+    results[i].status = 'pending';
+    renderTabs();
+    try {
+      const fd = new FormData();
+      fd.append('file', files[i]);
+      const res  = await fetch('http://localhost:5000/ocr', { method: 'POST', body: fd });
+      const json = await res.json();
+      if (json.code === 0) {
+        results[i].status = 'ok';
+        results[i].data = json.data;
+      } else {
+        results[i].status = 'fail';
+      }
+    } catch {
+      results[i].status = 'fail';
+    }
+    renderTabs();
+    updateProgress();
+    if (i === activeIdx) showResult(activeIdx);
+  }
+
+  document.getElementById('start-btn').disabled = false;
+}
+
+function updateProgress() {
+  const done = results.filter(r => r.status !== 'pending').length;
+  const pct = Math.round(done / results.length * 100);
+  document.getElementById('progress-bar').style.width = pct + '%';
+  document.getElementById('result-progress-badge').textContent = `${done} / ${results.length} 张完成`;
+}
+
+// ── 标签栏 ────────────────────────────────────────────────────────────────────
+function renderTabs() {
+  const scroll = document.getElementById('tabs-scroll');
+  scroll.innerHTML = '';
+  results.forEach((r, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'tab-btn' + (i === activeIdx ? ' active' : '');
+    const dot = document.createElement('span');
+    dot.className = `dot ${r.status === 'ok' ? 'ok' : r.status === 'fail' ? 'fail' : 'pending'}`;
+    const label = document.createElement('span');
+    label.textContent = r.file.name.length > 12 ? r.file.name.slice(0, 10) + '…' : r.file.name;
+    btn.appendChild(dot);
+    btn.appendChild(label);
+    btn.onclick = () => { activeIdx = i; renderTabs(); showResult(i); };
+    scroll.appendChild(btn);
+  });
+  document.getElementById('tab-counter').textContent = `${activeIdx + 1}/${results.length}`;
+}
+
+function scrollTabs(dir) {
+  document.getElementById('tabs-scroll').scrollBy({ left: dir * 160, behavior: 'smooth' });
+}
+
+// ── 结果展示 ──────────────────────────────────────────────────────────────────
+function showResultContent() {
+  document.getElementById('result-empty').style.display = 'none';
+  document.getElementById('result-content').style.display = '';
+}
+
+function resetResultPanel() {
+  document.getElementById('result-empty').style.display = '';
+  document.getElementById('result-content').style.display = 'none';
+  document.getElementById('conf-pct').textContent = '—';
+  const ring = document.getElementById('conf-ring');
+  ring.style.strokeDashoffset = '188.5';
+  ring.classList.remove('danger');
+  ['stat-chars','stat-lines','stat-time'].forEach(id => document.getElementById(id).textContent = '—');
+}
+
+function showResult(i) {
+  const r = results[i];
+  const metaEl  = document.getElementById('result-meta');
+  const textEl  = document.getElementById('result-text');
+  const blockEl = document.getElementById('block-count');
+
+  if (r.status === 'pending') {
+    textEl.innerHTML = '<div class="empty-state"><p>识别中，请稍候…</p></div>';
+    metaEl.textContent = '';
+    blockEl.textContent = '';
+    updateConfRing(null);
+    return;
+  }
+  if (r.status === 'fail') {
+    textEl.innerHTML = '<div class="empty-state" style="color:var(--danger)"><p>识别失败</p><p style="font-size:12px;margin-top:4px">请检查本地 OCR 服务是否已启动，或尝试重新上传</p></div>';
+    metaEl.textContent = '';
+    blockEl.textContent = '';
+    updateConfRing(null);
+    return;
+  }
+  const d = r.data;
+  const chars = d.text ? d.text.length : 0;
+  const lines = d.text ? d.text.split('\n').filter(l => l.trim()).length : 0;
+  metaEl.textContent = `${chars} 字符  ·  ${lines} 行  ·  耗时 ${d.elapsed_ms} ms`;
+  textEl.textContent = d.text || '（未识别到文字）';
+  blockEl.textContent = `逐块详情 · ${d.blocks ? d.blocks.length : 0} 个文字块`;
+  updateConfRing(d.confidence != null ? d.confidence : null);
+  document.getElementById('stat-chars').textContent = chars;
+  document.getElementById('stat-lines').textContent = lines;
+  document.getElementById('stat-time').textContent = d.elapsed_ms + ' ms';
+}
+
+function updateConfRing(conf) {
+  const pctEl = document.getElementById('conf-pct');
+  const ring   = document.getElementById('conf-ring');
+  if (conf == null) {
+    pctEl.textContent = '—';
+    ring.style.strokeDashoffset = '188.5';
+    ring.classList.remove('danger');
+    return;
+  }
+  const pct = Math.round(conf * 100);
+  pctEl.textContent = pct + '%';
+  ring.style.strokeDashoffset = 188.5 * (1 - conf);
+  ring.classList.toggle('danger', pct < 70);
+}
+
+// ── 下载 ──────────────────────────────────────────────────────────────────────
+function toggleDlMenu() {
+  document.getElementById('dl-menu').classList.toggle('open');
+}
+document.addEventListener('click', e => {
+  if (!e.target.closest('.dl-wrap')) document.getElementById('dl-menu').classList.remove('open');
+});
+
+function downloadTxt() {
+  const r = results[activeIdx];
+  if (!r || r.status !== 'ok') return;
+  triggerDownload(new Blob([r.data.text], { type: 'text/plain;charset=utf-8' }),
+    r.file.name.replace(/\.[^.]+$/, '') + '.txt');
+}
+function downloadJson() {
+  const r = results[activeIdx];
+  if (!r || r.status !== 'ok') return;
+  triggerDownload(new Blob([JSON.stringify(r.data, null, 2)], { type: 'application/json' }),
+    r.file.name.replace(/\.[^.]+$/, '') + '.json');
+}
+function downloadAllTxt() {
+  const ok = results.filter(r => r.status === 'ok');
+  if (!ok.length) return;
+  const content = ok.map(r => `=== ${r.file.name} ===\n${r.data.text}`).join('\n\n');
+  triggerDownload(new Blob([content], { type: 'text/plain;charset=utf-8' }), 'ocr_results.txt');
+}
+function downloadAllJson() {
+  const ok = results.filter(r => r.status === 'ok');
+  if (!ok.length) return;
+  const payload = ok.map(r => ({ filename: r.file.name, ...r.data }));
+  triggerDownload(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }), 'ocr_results.json');
+}
+function triggerDownload(blob, filename) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+}
+</script>
+</body>
+</html>

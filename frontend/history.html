@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>历史搜索 — OCR 文字识别</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:        #f5f3ef;
+      --surface:   #faf9f6;
+      --border:    #e8e4dc;
+      --primary:   #faf9f6;
+      --accent:    #6b6256;
+      --accent-lt: #f0ede6;
+      --danger:    #c0533a;
+      --text:      #2a231a;
+      --muted:     #8a7d6e;
+      --radius:    10px;
+      --shadow:    0 2px 12px rgba(60,40,10,.07);
+    }
+    body {
+      font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* 顶栏 */
+    header {
+      background: var(--primary);
+      color: var(--text);
+      border-bottom: 1px solid var(--border);
+      padding: 0 28px;
+      height: 52px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+    header .brand { font-size: 15px; font-weight: 600; letter-spacing: .5px; color: var(--text); }
+    header nav a {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 13px;
+      margin-left: 20px;
+      transition: color .15s;
+    }
+    header nav a:hover { color: var(--text); }
+    header nav a.active { color: var(--text); font-weight: 600; }
+
+    /* 主布局 */
+    main {
+      flex: 1;
+      max-width: 1200px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 28px 20px;
+      display: grid;
+      grid-template-columns: 340px 1fr;
+      gap: 20px;
+      align-items: start;
+    }
+
+    /* 卡片 */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .card-header {
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .card-header .badge {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--muted);
+    }
+    .card-body { padding: 18px; }
+
+    /* 表单 */
+    .form-group { margin-bottom: 14px; }
+    .form-group label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 5px; }
+    .form-group input[type="date"],
+    .form-group input[type="text"] {
+      width: 100%;
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 13px;
+      background: var(--surface);
+      color: var(--text);
+      outline: none;
+      transition: border-color .15s;
+    }
+    .form-group input:focus { border-color: var(--accent); }
+
+    .btn {
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      transition: background .15s, border-color .15s;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      width: 100%;
+      margin-bottom: 8px;
+    }
+    .btn:hover { background: var(--accent-lt); border-color: var(--accent); }
+    .btn:active { transform: scale(.97); }
+
+    /* 记录列表 */
+    .record-count { font-size: 12px; color: var(--muted); margin-bottom: 12px; }
+    .record-list { display: flex; flex-direction: column; gap: 8px; max-height: 520px; overflow-y: auto; }
+    .record-item {
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background .15s, border-color .15s;
+    }
+    .record-item:hover { background: var(--accent-lt); border-color: var(--accent); }
+    .record-item.active { background: var(--accent-lt); border-color: var(--accent); }
+    .record-item .rec-date {
+      font-size: 11px;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+    .record-item .rec-preview {
+      font-size: 12px;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .record-item .rec-conf {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    /* 分页 */
+    .pagination {
+      display: flex;
+      gap: 6px;
+      margin-top: 12px;
+      justify-content: center;
+    }
+    .page-btn {
+      padding: 4px 10px;
+      border-radius: 5px;
+      font-size: 12px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      cursor: pointer;
+      transition: background .15s;
+    }
+    .page-btn:hover { background: var(--accent-lt); }
+    .page-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .page-btn:disabled { opacity: .4; cursor: not-allowed; }
+
+    /* 右侧面板 */
+    #detail-panel { display: flex; flex-direction: column; gap: 16px; }
+
+    /* 图片预览 */
+    .img-preview-wrap {
+      padding: 16px 18px;
+      min-height: 180px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .img-preview-wrap img {
+      max-width: 100%;
+      max-height: 320px;
+      border-radius: 6px;
+      display: block;
+    }
+    .img-placeholder {
+      color: var(--muted);
+      font-size: 13px;
+      text-align: center;
+    }
+
+    /* 置信度卡片 */
+    .conf-card {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      padding: 16px 18px;
+    }
+    .conf-ring-wrap { position: relative; width: 72px; height: 72px; flex-shrink: 0; }
+    .conf-ring-wrap svg { transform: rotate(-90deg); }
+    .conf-ring-bg  { fill: none; stroke: #e8eaf0; stroke-width: 7; }
+    .conf-ring-fg  { fill: none; stroke: var(--accent); stroke-width: 7; stroke-linecap: round;
+                     stroke-dasharray: 188.5; stroke-dashoffset: 188.5;
+                     transition: stroke-dashoffset .6s cubic-bezier(.23,1,.32,1); }
+    .conf-ring-fg.danger { stroke: var(--danger); }
+    .conf-pct {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; font-weight: 700; color: var(--text);
+    }
+    .conf-info h4 { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+    .conf-info p  { font-size: 12px; color: var(--muted); }
+    .conf-info .stats { display: flex; gap: 14px; margin-top: 6px; }
+    .conf-info .stat  { font-size: 12px; color: var(--muted); }
+    .conf-info .stat span { font-weight: 600; color: var(--text); }
+
+    /* 识别文本卡片 */
+    .text-card-header {
+      padding: 12px 18px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .text-body {
+      padding: 14px 18px;
+      font-size: 13px;
+      line-height: 1.9;
+      white-space: pre-wrap;
+      word-break: break-all;
+      min-height: 80px;
+      color: var(--text);
+    }
+    .text-placeholder { color: var(--muted); font-size: 13px; }
+
+    /* 下载按钮 */
+    .dl-btn {
+      padding: 5px 12px;
+      border-radius: 5px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      transition: background .15s;
+    }
+    .dl-btn:hover { background: var(--accent-lt); border-color: var(--accent); }
+
+    /* 空状态 / 加载 */
+    .empty-state {
+      padding: 40px 20px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .spinner {
+      display: inline-block;
+      width: 18px; height: 18px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+<header>
+  <span class="brand">OCR 文字识别</span>
+  <nav>
+    <a href="index.html">识别</a>
+    <a href="history.html" class="active">历史搜索</a>
+  </nav>
+</header>
+
+<main>
+  <!-- 左侧：搜索 + 列表 -->
+  <div>
+    <div class="card">
+      <div class="card-header">
+        <span>历史搜索</span>
+        <span class="badge" id="record-count"></span>
+      </div>
+      <div class="card-body">
+        <div class="form-group">
+          <label>日期（可选）</label>
+          <input type="date" id="date-input" />
+        </div>
+        <div class="form-group">
+          <label>关键词（可选）</label>
+          <input type="text" id="keyword-input" placeholder="搜索识别文本中的关键词" />
+        </div>
+        <button class="btn" onclick="doSearch(1)">搜索</button>
+        <button class="btn" onclick="reloadAll()">重新加载全部</button>
+
+        <div id="list-area">
+          <div class="empty-state">点击"重新加载全部"或输入条件后搜索</div>
+        </div>
+
+        <div class="pagination" id="pagination"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 右侧：详情 -->
+  <div id="detail-panel">
+    <!-- 图片预览 -->
+    <div class="card">
+      <div class="card-header"><span>图片预览</span></div>
+      <div class="img-preview-wrap" id="img-preview-wrap">
+        <div class="img-placeholder">选择左侧记录查看图片</div>
+      </div>
+    </div>
+
+    <!-- 置信度 -->
+    <div class="card">
+      <div class="conf-card">
+        <div class="conf-ring-wrap">
+          <svg width="72" height="72" viewBox="0 0 72 72">
+            <circle class="conf-ring-bg" cx="36" cy="36" r="30"/>
+            <circle class="conf-ring-fg" id="conf-ring" cx="36" cy="36" r="30"/>
+          </svg>
+          <div class="conf-pct" id="conf-pct">—</div>
+        </div>
+        <div class="conf-info">
+          <h4>识别置信度</h4>
+          <p>当前记录 OCR 平均置信度</p>
+          <div class="stats">
+            <div class="stat">字符数 <span id="stat-chars">—</span></div>
+            <div class="stat">行数 <span id="stat-lines">—</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 识别文本 -->
+    <div class="card">
+      <div class="text-card-header">
+        <span>识别文本</span>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="dl-btn" id="dl-txt-btn" onclick="downloadCurrentTxt()" style="display:none">下载 TXT</button>
+          <button class="dl-btn" id="dl-json-btn" onclick="downloadCurrentJson()" style="display:none">下载 JSON</button>
+        </div>
+      </div>
+      <div class="text-body" id="text-body">
+        <span class="text-placeholder">选择左侧记录查看识别结果</span>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer style="text-align:center;padding:14px 0 18px;font-size:12px;color:var(--muted);">
+  数据仅在本机处理，不上传至任何服务器
+</footer>
+
+<script>
+const API = 'http://localhost:5000';
+
+let currentPage  = 1;
+let totalPages   = 1;
+let lastQuery    = {};
+let activeRecord = null;
+
+// ── 搜索 ──────────────────────────────────────────────────────────────────────
+function reloadAll() {
+  document.getElementById('date-input').value    = '';
+  document.getElementById('keyword-input').value = '';
+  doSearch(1);
+}
+
+async function doSearch(page) {
+  currentPage = page;
+  const date    = document.getElementById('date-input').value.trim();    // YYYY-MM-DD
+  const keyword = document.getElementById('keyword-input').value.trim();
+
+  lastQuery = { date, keyword };
+
+  // 构造 URL
+  const params = new URLSearchParams({ page, size: 20 });
+  if (date)    params.set('date',    date);
+  if (keyword) params.set('keyword', keyword);
+
+  setListLoading(true);
+
+  try {
+    const res  = await fetch(`${API}/history?${params}`);
+    const json = await res.json();
+
+    if (json.code !== 0) {
+      setListError(json.message || '请求失败');
+      return;
+    }
+
+    const { total, records, size } = json.data;
+    totalPages = Math.max(1, Math.ceil(total / size));
+
+    document.getElementById('record-count').textContent =
+      total > 0 ? `共 ${total} 条记录` : '';
+
+    renderList(records, total);
+    renderPagination(page, totalPages);
+  } catch (e) {
+    setListError('无法连接到本地 OCR 服务，请确保 python app.py 已运行');
+  } finally {
+    setListLoading(false);
+  }
+}
+
+function setListLoading(on) {
+  if (on) {
+    document.getElementById('list-area').innerHTML =
+      '<div class="empty-state"><span class="spinner"></span>加载中…</div>';
+  }
+}
+
+function setListError(msg) {
+  document.getElementById('list-area').innerHTML =
+    `<div class="empty-state" style="color:var(--danger)">${msg}</div>`;
+  document.getElementById('record-count').textContent = '';
+  document.getElementById('pagination').innerHTML = '';
+}
+
+// ── 渲染列表 ──────────────────────────────────────────────────────────────────
+function renderList(records, total) {
+  const area = document.getElementById('list-area');
+  if (!records || records.length === 0) {
+    area.innerHTML = '<div class="empty-state">暂无历史记录</div>';
+    return;
+  }
+
+  area.innerHTML = '';
+  records.forEach(r => {
+    const item = document.createElement('div');
+    item.className = 'record-item';
+    if (activeRecord && activeRecord.record_dir === r.record_dir) {
+      item.classList.add('active');
+    }
+
+    // 格式化日期：20260710 → 2026-07-10
+    const d = String(r.date);
+    const dateStr = d.length === 8
+      ? `${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}`
+      : d;
+
+    // 文本预览（去掉首行置信度行）
+    const rawText  = r.text || '';
+    const textBody = rawText.startsWith('置信度:')
+      ? rawText.split('\n').slice(1).join('\n').trim()
+      : rawText.trim();
+    const preview  = textBody.slice(0, 60) || '（无文字）';
+
+    const confPct = r.confidence != null
+      ? Math.round(r.confidence * 100) + '%'
+      : '—';
+
+    item.innerHTML = `
+      <div class="rec-date">${dateStr} &nbsp;·&nbsp; 记录 #${r.index}</div>
+      <div class="rec-preview">${escHtml(preview)}</div>
+      <div class="rec-conf">置信度 ${confPct}</div>
+    `;
+    item.onclick = () => selectRecord(r, item);
+    area.appendChild(item);
+  });
+}
+
+// ── 分页 ──────────────────────────────────────────────────────────────────────
+function renderPagination(current, total) {
+  const pg = document.getElementById('pagination');
+  pg.innerHTML = '';
+  if (total <= 1) return;
+
+  const mkBtn = (label, page, disabled, active) => {
+    const b = document.createElement('button');
+    b.className = 'page-btn' + (active ? ' active' : '');
+    b.textContent = label;
+    b.disabled = disabled;
+    if (!disabled) b.onclick = () => doSearch(page);
+    return b;
+  };
+
+  pg.appendChild(mkBtn('‹', current - 1, current === 1, false));
+
+  // 最多显示 5 页
+  let start = Math.max(1, current - 2);
+  let end   = Math.min(total, start + 4);
+  start     = Math.max(1, end - 4);
+  for (let p = start; p <= end; p++) {
+    pg.appendChild(mkBtn(p, p, false, p === current));
+  }
+
+  pg.appendChild(mkBtn('›', current + 1, current === total, false));
+}
+
+// ── 选中记录 ──────────────────────────────────────────────────────────────────
+function selectRecord(r, itemEl) {
+  // 高亮
+  document.querySelectorAll('.record-item').forEach(el => el.classList.remove('active'));
+  itemEl.classList.add('active');
+  activeRecord = r;
+
+  // 文本（去掉首行置信度）
+  const rawText  = r.text || '';
+  const textBody = rawText.startsWith('置信度:')
+    ? rawText.split('\n').slice(1).join('\n').trim()
+    : rawText.trim();
+
+  const textEl = document.getElementById('text-body');
+  textEl.textContent = textBody || '（未识别到文字）';
+
+  // 下载按钮
+  document.getElementById('dl-txt-btn').style.display  = textBody ? '' : 'none';
+  document.getElementById('dl-json-btn').style.display = textBody ? '' : 'none';
+
+  // 置信度环
+  updateConfRing(r.confidence);
+
+  // 字符数 / 行数
+  const chars = textBody.length;
+  const lines = textBody.split('\n').filter(l => l.trim()).length;
+  document.getElementById('stat-chars').textContent = chars || '—';
+  document.getElementById('stat-lines').textContent = lines || '—';
+
+  // 图片预览：调用后端接口
+  loadImage(r.record_dir);
+}
+
+async function loadImage(recordDir) {
+  const wrap = document.getElementById('img-preview-wrap');
+  wrap.innerHTML = '<div class="empty-state"><span class="spinner"></span>加载图片…</div>';
+
+  try {
+    const url = `${API}/history/${encodeURIComponent(recordDir)}/image`;
+    // 先 HEAD 检查是否存在
+    const res = await fetch(url, { method: 'HEAD' });
+    if (!res.ok) {
+      wrap.innerHTML = '<div class="img-placeholder">图片不存在或已删除</div>';
+      return;
+    }
+    const img = document.createElement('img');
+    img.src = url;
+    img.alt = '历史图片';
+    img.onerror = () => {
+      wrap.innerHTML = '<div class="img-placeholder">图片加载失败</div>';
+    };
+    wrap.innerHTML = '';
+    wrap.appendChild(img);
+  } catch {
+    wrap.innerHTML = '<div class="img-placeholder">无法加载图片</div>';
+  }
+}
+
+// ── 置信度环 ──────────────────────────────────────────────────────────────────
+function updateConfRing(conf) {
+  const pctEl = document.getElementById('conf-pct');
+  const ring  = document.getElementById('conf-ring');
+  if (conf == null) {
+    pctEl.textContent = '—';
+    ring.style.strokeDashoffset = '188.5';
+    ring.classList.remove('danger');
+    return;
+  }
+  const pct = Math.round(conf * 100);
+  pctEl.textContent = pct + '%';
+  ring.style.strokeDashoffset = 188.5 * (1 - conf);
+  ring.classList.toggle('danger', pct < 70);
+}
+
+// ── 下载 TXT ──────────────────────────────────────────────────────────────────
+function downloadCurrentTxt() {
+  if (!activeRecord) return;
+  const rawText  = activeRecord.text || '';
+  const textBody = rawText.startsWith('置信度:')
+    ? rawText.split('\n').slice(1).join('\n').trim()
+    : rawText.trim();
+  const d = String(activeRecord.date);
+  const filename = `ocr_${d}_${activeRecord.index}.txt`;
+  const blob = new Blob([textBody], { type: 'text/plain;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+}
+
+// ── 工具 ──────────────────────────────────────────────────────────────────────
+function downloadCurrentJson() {
+  if (!activeRecord) return;
+  const rawText  = activeRecord.text || '';
+  const textBody = rawText.startsWith('置信度:')
+    ? rawText.split('\n').slice(1).join('\n').trim()
+    : rawText.trim();
+  const d = String(activeRecord.date);
+  const filename = `ocr_${d}_${activeRecord.index}.json`;
+  const payload = {
+    date:       activeRecord.date,
+    index:      activeRecord.index,
+    record_dir: activeRecord.record_dir,
+    confidence: activeRecord.confidence,
+    text:       textBody,
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── 初始加载 ──────────────────────────────────────────────────────────────────
+reloadAll();
+</script>
+</body>
+</html>
