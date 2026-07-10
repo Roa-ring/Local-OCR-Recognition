@@ -1,0 +1,131 @@
+置信度: 96.0449%
+则Fx(2)=(分
+(E) 选择(S) 查看(V) 转到(G)
+←→
+Local-OCR-Recognition
+0
+管理器
+main.py
+app_integrated.py ×
+OCR项目需求分析.doc
+D#
+LOCAL-OCR-RECOGNITION
+app_integrated.py > apply preprocessing
+cacne
+14
+import numpy as np
+> history
+15
+from flask import Flask, request, jsonify, send_from_directory
+> LOR
+16
+from flask_cors import CORS
+> ocr-electron
+17
+from paddleocr import PaddleOCR
+.gitignore
+18
+from preprocess import bgr_to_gray, histogram_median_filter
+.gitignore.txt
+19
+20
+BASE_DIR = os.path.dirname(os.path.abspath(__file___))
+8df18ee8c39ba2afe8cbb873304d48bc_720.jpg
+48bc_720.jpg
+21
+DIST_DIR = os.path.join(BASE_DIR, "ocr-electron", "dist")
+22
+TMP_DIR = os.path.join(BASE_DIR, "_tmp")
+601deddd4d58cbed8c8f85600a3bf0e2.png
+23
+CACHE_DIR = os.path.join(BASE_DIR, "cache")
+四
+需求分析说明书模板（简版）png
+24
+os.makedirs(TMP_DIR, exist_ok=True)
+app_final.py
+25
+os.makedirs(CACHE_DIR, exist_ok=True)
+app_integrated.py
+26
+27
+app = Flask(__name__, static_foLder=DIST_DIR, static_urL_path="")
+app_new.py
+28
+CORS(app)
+app_release.py
+29
+c2990ee0d065aa5b079f5d55641e47ec.jpg
+30
+print("正在加载 OCR 模型，请稍候...")
+history_manage.py
+31
+ocr = PaddleOCR(
+indexmake.py
+32
+text_detection_model_name="Pp-OCRv6_medium_det",
+json_cal.py
+33
+text_recognition_model_name="Pp-OCRv6_medium_rec",
+Js main.js
+34
+use_doc_orientation_cLassify=False,
+35
+use_doc_unwarping=False,
+main.py
+OCR项目启动.doc
+问题输出调试控制台
+终端
+端口
++Python 田自 … |×
+OCR项目需求分析.doc
+(LOR) PS D:\Local-OCR-Recognition> & d:\Local-OCR-Recognition\LOR\Scripts\python.exe d:/Local-OCR-Recognition/app_integrated.py
+output.py
+{} package-lock.json
+* Serving Flask app 'app integrated'
+* Debug mode: off
+{} package.json
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+preprocess.py
+* Running on all addresses (0.0.0.0)
+①README.md
+* Running on http://127.0.0.1:5000
+* Running on http://10.13.5.81:5000
+requirements.txt
+Press CTRL+C to quit
+test.py
+127.0.0.1 --[09/Ju1/2026 16:47:44]
+"GET / HTTP/1.1" 304 -
+127.0.0.1-
+[09/Ju1/2026 16:47:44]
+"GET /assets/index-DcnU8-td.js HTTP/1.1" 304 -
+test2.py
+127.0.0.1-
+[09/Ju1/2026 16:47:44]
+"GET /assets/index-TaT9dRWh.css HTTP/1.1" 304
+test3.py
+127.0.0.1--
+[09/Ju1/2026 16:47:44]
+"GET /manus/debug-collector.js HTTP/1.1" 304 -
+127.0.0.1-
+[09/Ju1/2026 16:47:45]
+"GET /favicon.ico HTTP/1.1" 404 -
+>大纲
+127.0.0.1
+[09/Ju1/2026 16:47:46]
+"POST / manus /1ogs HTTP/1.1" 405 -
+127.0.0.1
+[09/Ju1/2026 16:47:54]
+"POST /manus/logs HTTP/1.1" 405 -
+>时间线
+80 main
+00
+nth231(6小时前) 行 44,列 13 空格：4 UTF-8 CRLF (} Python LOR(3.12.10)
+W
+三月
+着我来见你。
+至
+F
+凯恩米老
+justin biel
+华科大物

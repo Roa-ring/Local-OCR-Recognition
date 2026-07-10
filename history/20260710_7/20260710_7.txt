@@ -1,0 +1,132 @@
+置信度: 91.2661%
+D0
+0
+-10×
+OCR项目需求分析.doc
++yhan 自
+Local-OCR-Recoegnition
+app_integrated.py ×
+main py
+import numpy as np
+app_integrated py >  apply preprocessing
+from flask Import Flask, request, jsonify, send_from_directory
+转显(G)
+14
+from flask_cors import CORS
+15
+from paddleocr leport PaddleOCR
+16
+from preprocess import bgr_to_gray, histogram_median_filter
+17
+18
+BASE_DIR - os.path.dirname(os.path.abspath(__file__))
+19
+DIST_DIR = es.path.join(BASE_DIR, "ocr-electron", "dist")
+20
+TMP_DIR = os. path. Join(BASE_DIR, "_tmp")
+(E) 选择() 直看(V)
+21
+CACHE_DIR - Os. path. Join(BASE_DIR, "cache")
+22
+os.makedirs(TMP_DIR, exist_ob-True)
+23
+os.makedirs(CACHE_DIR, exist_oh-True)
+管理器
+24
+25
+app = Flask(__name__, static_folder-OIST_DIR, static_url_poth-")
+26
+CORS(app)
+LOCAL-OCR-RECOGNITION
+27
+BQ
+Cacns
+28
+print(“正在加载 ocr 模型，请稍候...“)
+ history
+29
+ocr - PaddleOCR(
+text_detection_model_nome-"Pp-OCkvé_medium_det",
+LOR
+30
+text_recognition_model_nome-"Pp-OCRv6_medium_rec",
+31
+use_doc_orientation_classify=False,
+mth231 (6 小时)行 44.  13  4 UTF-4CRL() PythnLOR (3.12.10)
+9
+> ecr-electron
+gitignore
+32
+use_doc_unwarping=False,
+33
+C2制
+gitignare.tet
+34
+88
+8df18ee8c39baZafe8cbb873304d48bc_720.jpg
+35
+48bc_720.jpg
+河题
+"GET / manus/debug-collector.js HTTP/1.1" 304
+601deddd4d5acbed8cam5600a3bf0e2.png
+"GET /favicon.ico HTTP/1.1" 404
+田
+需求分析说明书模板（简版）png
+(LOR) PS D:\Local-OCR-Recognition) & d:\Local-OCR-Recognition\LOk\Scripts\python.exe d:/Local-OCR-Recognition/app_integrated.py
+"POST / manus /1ogs HTTP/1.1" 405
+口
+app final py
+• Serving Flask app 'app integrated"
+app_integrated py
+ Debug mode: off
+app_new.py
+WANNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+• Running on all addresses (0.0.0.0)
+[09/Ju1/2026 16:47:44] "GET / HTTP/1.1" 304 -
+[09/Ju1/2026 16:47:44] "GET /assets/1ndex-DcnU8-td.js HTTP/1.1" 304
+app release.py
+• Running on http://127.0.0.1:5000
+[09/Ju1/2026 16:47:44] "GET /a55ets/1ndex-TaT9dwh.C55 HTTP/1.1" 304
+c2990ee0d065aa5b07915d55641e47ec.jpg
+• Running on http://10.13.5.81:5000
+[09/Ju1/2026 16:47:44]
+history manage py
+Press CTAL+C to quit
+[09/3u1/2026 16:47:45]
+回
+indesmake py
+127.0.0.1-
+[09/Ju1/2026 16:47:46]
+[09/3u1/2026 16:47:54] "POST /_manus /1ogs HTTP/1.1° 405 
+三月风带着我来见你。
+凯恩米老
+127.0.0.1
+juon cal. py
+127.0.0.1
+路里充值成功
+s mainjs
+127.0.0.1
+main py
+127.0.0.1
+正在派件，请保持好心情~
+OCR项目启动doc
+127.0.0.1
+127.0.0.1
+三月风带着我来见你。
+OCK项目需求分析dox
+justin biet
+output py
+觉至上
+(1 package-lock,json
+(1 package,json
+preprocess.py
+华科大物
+①README.md
+E requirements.tst
+test.py
+test2.py
+test3.py
+大
+中
+时间
+P 

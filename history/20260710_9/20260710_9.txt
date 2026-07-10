@@ -1,0 +1,134 @@
+置信度: 64.3517%
+A
+a
+88m
+W5Q
+Lacal CCh-Recogaition
+A18
+◆
+up itegretetpy 
+010R分析
+LOCAL OCR-RECOGNITION
+tnpratet py )  apoly preprectmsing
+14
+lmport numpy as ag
+ histoy
+15
+fron flash tmpurt Flask, request, juonify, send_from_dlrectory
+80
+LO0
+1.6
+fron féask_cars import coks
+-
+17
+fron paddleoc leport Paddech
+gillignare
+10
+fron preprecess lmport hapr_to_grey, histagram_mettan filter
+8
+gllignare.n
+19
+6u18edc2at087130404b_720g
+R
+(1)0) 0 
+12
+(10,000) 0-00
+8
+6z
+22
+tp e  s path. doin(bas_te, "tp)
+c0dedasaidcbeddmesatatal pg
+23
+CACe_pce - es path. dete(base_pce, "cache")
+四
+
+24
+es.matedirs(tp_p, ertst atrue)
+ape leat py
+实元
+es.matedlr((aC_0e, extst_c-True)
+age itetd py
+400,n0py
+a - Flk(stette_drSt_020, stetic_r_th")
+20
+app pelease py
+武黄菜
+CORS(400)
+290e0trt64tęd7es g
+pri(*正在加载 e 频想.请称税.*)
+Nistory manage ay
+ec . PaddleOCR(
+indmatie 
+33
+text_detectian modet_name-"90-0chus_medlun_det"
+juon ca py
+33
+text_recopeitlan modet_nome-"0 0ctué_medtum_rec".
+34
+use_doc_ortentatton_clessifylalse,
+35
+mainpy
+use_doc_umeerpimpelalse,
+ccx
+R8
+00
+60999
+0
++.
+- 1 ×
+OCx需求分析
+(L) P O: Woca)-oce-Aecoation & d Vecal-ce-Mecoitione\Scrtpts\ython. ese d:/Local-c-decottion/ae_etegrated.y
+puy
+Sarving Flask app app_integrated
+() package-lock,juen
+Detug mode: off
+() package joon
+a This Ls è deveament server. Do met use st Le è prodaction deployment. Use o production uscl server Lestead.
+preprocas py
+Rumming on al1 addresses (0.0.0.0)
+READMLnd
+humtng on http://127.0.0.1:5000
++huming on http://30.13.5.81:5000
+É repuirmends tet
+Press CTMLoC to quit
+
+127.0.0.1
+[00/2×1/2026 16:47:44]
+"GT / NTT9/1.1" 304 .
+tst2.9
+127.0.0.1
+(00/21/2026 16:47:44)
+"ET /assets/imdes-0n0-1. H9/1.1° 304
+ty
+127.0.0.1
+[09/301/2026 16:47:44)
+"ET /ss/1nde-T9cs 19/11"304
+127.0.0.1
+[00/3uL/2026
+16:47:44]
+T /mans/dbu-cellector.3s ste/1.1"384
+127.0.0.1
+[09/3u1/2026
+16:47:45]
+"T /m. 1cs e/1.1"404
+127.0.0.1
+[09/3a1/2026
+16:47:46]
+"905t /_s/1as 19/11"40
+> A
+127.0.0.1
+[09/3u1/2026
+16:47:14)
+*905T /_mame_ags 19/1.1°
+405
+1me
+2:A1
+
+
+011
+CRU
+11
+维达经维
+凯恩米老
+justin biel
+华科大物

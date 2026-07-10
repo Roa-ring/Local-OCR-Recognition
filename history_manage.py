@@ -32,5 +32,8 @@ def history_manage(result,image_path):
     with open(txt_path, 'w', encoding='utf-8') as f:
         f.write(f"置信度: {avg_conf:.4%}\n")
         f.write(old)
-    if os.path.exists("cache/"+image_path+".png"):
-        os.remove("cache/"+image_path+".png")
+    for item in os.listdir("cache"):
+        item_path = os.path.join("cache", item)
+        # 只判断是否为文件（不删文件夹）
+        if os.path.isfile(item_path):
+            os.remove(item_path)
