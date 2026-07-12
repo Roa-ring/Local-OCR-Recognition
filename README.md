@@ -11,10 +11,6 @@ cd Local-OCR-Recognition
 ```
 创建虚拟环境（如果需要）
 ```
-py -3.12 -m venv LOR
-LOR\Scripts\Activate.ps1
-```
-```
 pip install -r requirements
 ```
 

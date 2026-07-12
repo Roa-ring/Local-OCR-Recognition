@@ -2,10 +2,12 @@
 __pycache__/
 *.py[codz]
 *$py.class
-LOR/
+/LOR/
 output/
 test/
-
+/1/
+/_tmp/
+/history/
 # C extensions
 *.so
 

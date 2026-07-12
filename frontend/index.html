@@ -418,7 +418,7 @@
   <span class="brand">OCR 文字识别</span>
   <nav>
     <a href="index.html" class="active">识别</a>
-    <a href="history.html" target="_blank">历史搜索</a>
+    <a href="history.html"  target="_blank">历史搜索</a>
   </nav>
 </header>
 
@@ -455,11 +455,16 @@
         <button class="btn primary" id="start-btn" onclick="startOCR()" disabled>
           开始识别
         </button>
+        <div style="margin-top: 12px; display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text);">
+              <input type="checkbox" id="pyramid-toggle" checked />
+                  <label for="pyramid-toggle">启用金字塔缩放（大图加速）</label>
+              <span style="font-size: 12px; color: var(--muted); margin-left: auto;">建议保持开启</span>
+        </div>
 
         <div class="usage">
           使用说明<br>
           支持点击、拖拽文件夹、或 Ctrl+V 粘贴截图上传<br>
-          点击缩略图可预览，长按可裁剪后再识别<br>
+          点击缩略图可预览，右键可裁剪后再识别<br>
           确保 <code>python app.py</code> 已在本地运行
         </div>
       </div>
@@ -772,7 +777,10 @@ async function startOCR() {
     try {
       const fd = new FormData();
       fd.append('file', files[i]);
-      const res  = await fetch('http://localhost:5000/ocr', { method: 'POST', body: fd });
+      const pyramidEnabled = document.getElementById('pyramid-toggle').checked ? '1' : '0';
+      fd.append('pyramid_levels', pyramidEnabled);
+      const res = await fetch('http://localhost:5000/ocr', { method: 'POST', body: fd });
+      // ★★★ 修复：解析 JSON 响应 ★★★
       const json = await res.json();
       if (json.code === 0) {
         results[i].status = 'ok';

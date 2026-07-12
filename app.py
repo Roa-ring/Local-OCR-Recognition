@@ -6,8 +6,8 @@ app.py — 本地 OCR 文字识别服务（最终整合版）
 整合功能：
 - 图像预处理：灰度化、中值滤波去噪、CLAHE 对比度增强
 - 倾斜矫正：基于 Hough 变换自动检测并矫正文本倾斜（skew.py）
-- 细笔画补偿：置信度 < 0.9 时跳过中值滤波重试，取更优结果
-- 历史记录：每次识别自动保存到 history/ 目录（output.py）
+- 细笔画补偿：置信度 < 0.85 时跳过中值滤波重试，取更优结果
+- 历史记录：每次识别自动保存到 history/ 目录（base.py）
 - 置信度计算：基于 rec_scores 计算平均置信度（json_cal.py）
 - 历史搜索 API：支持按日期查询、关键词搜索
 """
@@ -17,8 +17,6 @@ import os
 import shutil
 import traceback
 import uuid
-import json
-import math
 import threading
 
 import cv2
@@ -29,8 +27,10 @@ from paddleocr import PaddleOCR
 
 from preprocess import bgr_to_gray, histogram_median_filter
 from skew import rotation_creation
-from output import get_manager, extract_text_from_result
+from base import get_manager
 import indexmake
+from searchnew import search_by_fields
+from downscale import laplacian_pyramid_downscale
 
 # ─── 目录配置 ─────────────────────────────────────────────────────────────────
 
@@ -42,6 +42,9 @@ HISTORY_DIR = os.path.join(BASE_DIR, "history")
 
 for d in (TMP_DIR, CACHE_DIR, HISTORY_DIR):
     os.makedirs(d, exist_ok=True)
+
+# ★★★ 修复：切换工作目录至 BASE_DIR，确保 skew.py 中的相对路径 "./cache" 正确 ★★★
+os.chdir(BASE_DIR)
 
 # ─── Flask 初始化 ──────────────────────────────────────────────────────────────
 
@@ -119,7 +122,7 @@ def _calc_avg_confidence(rec_scores: list) -> float:
     return sum(rec_scores) / len(rec_scores)
 
 
-def apply_preprocessing(image_path: str, use_denoise: bool = True) -> str:
+def apply_preprocessing(image_path: str, use_denoise: bool = True, pyramid_levels: int = 1) -> str:
     """
     图像预处理流程：
       1. 倾斜矫正（skew.rotation_creation → cache/rotated.png）
@@ -147,13 +150,26 @@ def apply_preprocessing(image_path: str, use_denoise: bool = True) -> str:
     # 2. 灰度化
     gray = bgr_to_gray(img)
 
-    # 3. 中值滤波去噪（细笔画补偿时跳过）
+    # 3. 金字塔下采样（动态决定级别）
+    h, w = gray.shape[:2]
+    # 如果图像较短边 > 1200，则使用给定级别；否则根据短边计算适当级别
+    min_side = min(h, w)
+    # 只有当用户启用金字塔缩放 (pyramid_levels>0) 且图像足够大时，才进行下采样
+    if pyramid_levels > 0 and min_side > 1200:
+        desired = 800
+        ratio = min_side / desired
+        levels = int(round(np.log2(ratio)))
+        levels = max(0, min(pyramid_levels, levels))
+        if levels > 0:
+            gray = laplacian_pyramid_downscale(gray, levels=levels)
+    # 否则不下采样，保留原分辨率
+    # 4. 中值滤波去噪（细笔画补偿时跳过）
     if use_denoise:
         processed = histogram_median_filter(gray)
     else:
         processed = gray
 
-    # 4. CLAHE 对比度增强
+    # 5. CLAHE 对比度增强
     clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
     enhanced = clahe.apply(processed)
 
@@ -251,15 +267,19 @@ def ocr_recognize():
     try:
         # ── 串行锁：同一时刻只允许一个请求进入 OCR ──
         with _ocr_lock:
-            # ── 第一次识别（含中值滤波） ──
-            processed_path = apply_preprocessing(tmp_path, use_denoise=True)
+            # 从请求中获取 pyramid_levels 参数，默认为 1（启用）
+            pyramid_levels = int(request.form.get("pyramid_levels", 1))
+
+            # 第一次识别（含中值滤波），使用用户指定的缩放级别
+            processed_path = apply_preprocessing(tmp_path, use_denoise=True, pyramid_levels=pyramid_levels)
+
             results, elapsed_ms = run_ocr(processed_path)
             text_lines, rec_scores, blocks = _parse_ocr_results(results)
             avg_conf = _calc_avg_confidence(rec_scores)
 
-            # ── 细笔画补偿：置信度 < 0.9 时跳过去噪重试 ──
-            if avg_conf < 0.9:
-                processed_path2 = apply_preprocessing(tmp_path, use_denoise=False)
+            # ── 细笔画补偿：置信度 < 0.85 时跳过去噪重试 ──
+            if avg_conf < 0.85:
+                processed_path2 = apply_preprocessing(tmp_path, use_denoise=False,pyramid_levels=0)
                 results2, elapsed_ms2 = run_ocr(processed_path2)
                 text_lines2, rec_scores2, blocks2 = _parse_ocr_results(results2)
                 avg_conf2 = _calc_avg_confidence(rec_scores2)
@@ -312,45 +332,40 @@ def history_list():
     """
     GET /history
     可选参数：
-      date=YYYYMMDD 或 YYYY-MM-DD  按日期过滤
-      keyword=xxx                  在日期结果中再按关键词过滤
+      date=任意日期格式字符串（如 20260710, 2026-07-10, 2026年7月, 20260701~20260710）
+      keyword=关键词（搜索识别文本）
       page=1&size=20               分页
     """
     try:
-        manager   = get_manager()
-        date_str  = request.args.get("date", "").strip()
-        keyword   = request.args.get("keyword", "").strip()
-        page      = max(1, int(request.args.get("page",  1)))
-        size      = max(1, int(request.args.get("size", 20)))
+        date_str = request.args.get("date", "").strip()
+        keyword = request.args.get("keyword", "").strip()
+        page = max(1, int(request.args.get("page", 1)))
+        size = max(1, int(request.args.get("size", 20)))
 
-        if date_str:
-            records = manager.search_by_date(date_str)
-            if keyword:
-                records = [r for r in records if keyword.lower() in r.get("text", "").lower()]
-        elif keyword:
-            all_records = manager.get_all_records()
-            records = [r for r in all_records if keyword.lower() in r.get("text", "").lower()]
-        else:
-            records = manager.get_all_records()
+        # 调用 search_by_fields 进行日期范围与关键词过滤
+        # 若参数为空，则传递 None，search_by_fields 会忽略该条件
+        records = search_by_fields(
+            date_str=date_str if date_str else None,
+            keyword_str=keyword if keyword else None
+        )
+        # search_by_fields 已按日期降序排序，无需再次反转
 
-        # 倒序（最新在前）
-        records = list(reversed(records))
-        total   = len(records)
-        start   = (page - 1) * size
-        paged   = records[start: start + size]
+        total = len(records)
+        start = (page - 1) * size
+        paged = records[start: start + size]
 
         return jsonify({
             "code": 0,
             "data": {
-                "total":   total,
-                "page":    page,
-                "size":    size,
+                "total": total,
+                "page": page,
+                "size": size,
                 "records": paged,
             }
         })
     except Exception as e:
         traceback.print_exc()
-        return jsonify({"code": -1, "message": str(e)}), 500
+        return jsonify({"code": -1, "message": f"搜索失败：{str(e)}"}), 500
 
 
 @app.route("/history/<record_dir>/image", methods=["GET"])
