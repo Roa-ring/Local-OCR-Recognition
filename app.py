@@ -6,7 +6,7 @@ app.py — 本地 OCR 文字识别服务（最终整合版）
 整合功能：
 - 图像预处理：灰度化、中值滤波去噪、CLAHE 对比度增强
 - 倾斜矫正：基于 Hough 变换自动检测并矫正文本倾斜（skew.py）
-- 细笔画补偿：置信度 < 0.85 时跳过中值滤波重试，取更优结果
+- 细笔画补偿：置信度 < 0.8 时跳过中值滤波重试，取更优结果
 - 历史记录：每次识别自动保存到 history/ 目录（base.py）
 - 置信度计算：基于 rec_scores 计算平均置信度（json_cal.py）
 - 历史搜索 API：支持按日期查询、关键词搜索
@@ -17,7 +17,7 @@ import os
 import shutil
 import traceback
 import uuid
-import threading
+import gc
 
 import cv2
 import numpy as np
@@ -51,20 +51,43 @@ os.chdir(BASE_DIR)
 app = Flask(__name__, static_folder=FRONTEND, static_url_path="")
 CORS(app)
 
-# ─── OCR 模型（全局单例，启动时加载一次） ──────────────────────────────────────
+# ─── OCR 模型配置（每次请求重新初始化） ──────────────────────────────────────
 
-print("正在加载 OCR 模型，请稍候...")
-ocr = PaddleOCR(
-    text_detection_model_name="PP-OCRv6_medium_det",
-    text_recognition_model_name="PP-OCRv6_medium_rec",
-    use_doc_orientation_classify=False,
-    use_doc_unwarping=False,
-    use_textline_orientation=True,
-)
-print("OCR 模型加载完成！访问 http://localhost:5000")
+def create_ocr_instance():
+    """
+    创建新的 PaddleOCR 实例。
+    每次调用都会重新加载模型，避免长时间运行导致的内存泄漏或崩溃。
+    """
+    return PaddleOCR(
+        text_detection_model_name="PP-OCRv6_medium_det",
+        text_recognition_model_name="PP-OCRv6_medium_rec",
+        use_doc_orientation_classify=False,
+        use_doc_unwarping=False,
+        use_textline_orientation=True,
+    )
 
-# OCR 全局锁：PaddleOCR 非线程安全，同一时刻只允许一个请求执行识别
-_ocr_lock = threading.Lock()
+
+def cleanup_ocr(ocr_instance):
+    """
+    清理 OCR 实例，释放内存。
+    """
+    if ocr_instance is not None:
+        try:
+            # 尝试释放 paddle 相关资源
+            if hasattr(ocr_instance, 'text_detector'):
+                ocr_instance.text_detector = None
+            if hasattr(ocr_instance, 'text_recognizer'):
+                ocr_instance.text_recognizer = None
+            if hasattr(ocr_instance, 'text_classifier'):
+                ocr_instance.text_classifier = None
+        except Exception:
+            pass
+        # 强制垃圾回收
+        gc.collect()
+
+
+print("PaddleOCR 将按需加载（每次请求独立初始化）")
+print("访问 http://localhost:5000 启动服务")
 
 
 # ─── 工具函数 ──────────────────────────────────────────────────────────────────
@@ -128,7 +151,8 @@ def apply_preprocessing(image_path: str, use_denoise: bool = True, pyramid_level
       1. 倾斜矫正（skew.rotation_creation → cache/rotated.png）
       2. 灰度化
       3. 中值滤波去噪（可选，use_denoise=False 时跳过，用于细笔画补偿）
-      4. CLAHE 对比度增强
+      4. 金字塔下采样（缩放）
+      5. CLAHE 对比度增强
     返回处理后图像的临时文件路径。
     """
     # 1. 倾斜矫正：结果写入 cache/rotated.png
@@ -144,30 +168,28 @@ def apply_preprocessing(image_path: str, use_denoise: bool = True, pyramid_level
     if img is None:
         return image_path
 
-    # 限制分辨率
+    # 限制分辨率（防止后续处理过大）
     img = _limit_resolution(img)
 
     # 2. 灰度化
     gray = bgr_to_gray(img)
 
-    # 3. 金字塔下采样（动态决定级别）
-    h, w = gray.shape[:2]
-    # 如果图像较短边 > 1200，则使用给定级别；否则根据短边计算适当级别
+    # 3. 中值滤波去噪（在缩放之前进行，保留细节）
+    if use_denoise:
+        processed = histogram_median_filter(gray)
+    else:
+        processed = gray
+
+    # 4. 金字塔下采样（在降噪之后进行）
+    h, w = processed.shape[:2]
     min_side = min(h, w)
-    # 只有当用户启用金字塔缩放 (pyramid_levels>0) 且图像足够大时，才进行下采样
     if pyramid_levels > 0 and min_side > 1200:
         desired = 800
         ratio = min_side / desired
         levels = int(round(np.log2(ratio)))
         levels = max(0, min(pyramid_levels, levels))
         if levels > 0:
-            gray = laplacian_pyramid_downscale(gray, levels=levels)
-    # 否则不下采样，保留原分辨率
-    # 4. 中值滤波去噪（细笔画补偿时跳过）
-    if use_denoise:
-        processed = histogram_median_filter(gray)
-    else:
-        processed = gray
+            processed = laplacian_pyramid_downscale(processed, levels=levels)
 
     # 5. CLAHE 对比度增强
     clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
@@ -179,10 +201,10 @@ def apply_preprocessing(image_path: str, use_denoise: bool = True, pyramid_level
     return tmp_path
 
 
-def run_ocr(processed_path: str):
+def run_ocr(processed_path: str, ocr_instance):
     """调用 OCR 并返回 (results, elapsed_ms)"""
     start = time.time()
-    results = ocr.predict(processed_path)
+    results = ocr_instance.predict(processed_path)
     elapsed_ms = int((time.time() - start) * 1000)
     return results, elapsed_ms
 
@@ -263,31 +285,37 @@ def ocr_recognize():
 
     processed_path  = None
     processed_path2 = None
+    ocr_instance = None
 
     try:
-        # ── 串行锁：同一时刻只允许一个请求进入 OCR ──
-        with _ocr_lock:
-            # 从请求中获取 pyramid_levels 参数，默认为 1（启用）
-            pyramid_levels = int(request.form.get("pyramid_levels", 1))
+        # ── 每次请求创建新的 OCR 实例 ──
+        ocr_instance = create_ocr_instance()
 
-            # 第一次识别（含中值滤波），使用用户指定的缩放级别
-            processed_path = apply_preprocessing(tmp_path, use_denoise=True, pyramid_levels=pyramid_levels)
+        # 从请求中获取 pyramid_levels 参数，默认为 1（启用）
+        pyramid_levels = int(request.form.get("pyramid_levels", 1))
 
-            results, elapsed_ms = run_ocr(processed_path)
-            text_lines, rec_scores, blocks = _parse_ocr_results(results)
-            avg_conf = _calc_avg_confidence(rec_scores)
+        # 第一次识别（含中值滤波），使用用户指定的缩放级别
+        processed_path = apply_preprocessing(tmp_path, use_denoise=True, pyramid_levels=pyramid_levels)
 
-            # ── 细笔画补偿：置信度 < 0.85 时跳过去噪重试 ──
-            if avg_conf < 0.85:
-                processed_path2 = apply_preprocessing(tmp_path, use_denoise=False,pyramid_levels=0)
-                results2, elapsed_ms2 = run_ocr(processed_path2)
-                text_lines2, rec_scores2, blocks2 = _parse_ocr_results(results2)
-                avg_conf2 = _calc_avg_confidence(rec_scores2)
+        results, elapsed_ms = run_ocr(processed_path, ocr_instance)
+        text_lines, rec_scores, blocks = _parse_ocr_results(results)
+        avg_conf = _calc_avg_confidence(rec_scores)
 
-                if avg_conf2 > avg_conf:
-                    text_lines, rec_scores, blocks = text_lines2, rec_scores2, blocks2
-                    avg_conf  = avg_conf2
-                    elapsed_ms = elapsed_ms2
+        # ── 细笔画补偿：置信度 < 0.8 时跳过去噪重试 ──
+        if avg_conf < 0.8:
+            # 清理旧的 OCR 实例，重新创建以释放内存
+            cleanup_ocr(ocr_instance)
+            ocr_instance = create_ocr_instance()
+
+            processed_path2 = apply_preprocessing(tmp_path, use_denoise=False, pyramid_levels=0)
+            results2, elapsed_ms2 = run_ocr(processed_path2, ocr_instance)
+            text_lines2, rec_scores2, blocks2 = _parse_ocr_results(results2)
+            avg_conf2 = _calc_avg_confidence(rec_scores2)
+
+            if avg_conf2 > avg_conf:
+                text_lines, rec_scores, blocks = text_lines2, rec_scores2, blocks2
+                avg_conf  = avg_conf2
+                elapsed_ms = elapsed_ms2
 
         full_text = "\n".join(text_lines)
 
@@ -309,6 +337,10 @@ def ocr_recognize():
         return jsonify({"code": -1, "message": f"识别失败：{str(e)}"}), 500
 
     finally:
+        # 清理 OCR 实例，释放内存
+        cleanup_ocr(ocr_instance)
+
+        # 清理临时文件
         for p in filter(None, [tmp_path, processed_path, processed_path2]):
             if os.path.exists(p):
                 try:
@@ -343,12 +375,10 @@ def history_list():
         size = max(1, int(request.args.get("size", 20)))
 
         # 调用 search_by_fields 进行日期范围与关键词过滤
-        # 若参数为空，则传递 None，search_by_fields 会忽略该条件
         records = search_by_fields(
             date_str=date_str if date_str else None,
             keyword_str=keyword if keyword else None
         )
-        # search_by_fields 已按日期降序排序，无需再次反转
 
         total = len(records)
         start = (page - 1) * size
