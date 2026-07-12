@@ -14,8 +14,9 @@ cd Local-OCR-Recognition
 py -3.12 -m venv LOR
 LOR\Scripts\Activate.ps1
 ```
+如果运行脚本出现报错请自行修改powershell安全策略
 ```
-pip install -r requirements
+pip install -r requirements.txt
 ```
 
 ## 使用
