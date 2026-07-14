@@ -54,6 +54,7 @@
     /* 主布局 */
     main {
       flex: 1;
+      min-width: 0;
       max-width: 1200px;
       width: 100%;
       margin: 0 auto;
@@ -227,7 +228,8 @@
     }
 
     /* 右侧面板 */
-    #result-panel { display: flex; flex-direction: column; gap: 16px; }
+    #result-panel { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+    #result-card { min-width: 0; }
 
     /* 置信度卡片 */
     .conf-card {
@@ -256,6 +258,9 @@
 
     /* 标签栏 */
     .tabs-wrap {
+      min-width: 0;
+      max-width: 100%;
+      overflow: hidden;
       display: flex;
       align-items: center;
       gap: 6px;
@@ -264,6 +269,8 @@
     }
     .tabs-scroll {
       flex: 1;
+      min-width: 0;
+      max-width: 100%;
       overflow-x: auto;
       scrollbar-width: none;
       display: flex;
