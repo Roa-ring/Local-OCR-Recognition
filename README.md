@@ -18,9 +18,12 @@ LOR\Scripts\Activate.ps1
 ```
 pip install -r requirements.txt
 ```
+或者直接下载压缩包，解压后使用exe文件
+exe不需要安装配置，适合不同场景下使用
 
 ## 使用
 运行app.py,在浏览器访问http://127.0.0.1:5000，应当出现以下界面
+或者直接运行app.exe，等待软件启动即可
 <div align="center">
 <img src="https://github.com/Roa-ring/Local-OCR-Recognition/blob/main/_tmp/readme4.png" width="800"/>
 </div>
